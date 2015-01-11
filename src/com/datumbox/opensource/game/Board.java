@@ -36,12 +36,12 @@ public class Board implements Cloneable {
     /**
      * The maximum combination in which the game terminates
      */
-    public static final int TARGET_POINTS = 2048;
+    public static final int TARGET_POINTS = 2*2048;
     
     /**
      * The theoretical minimum win score until the target point is reached
      */
-    public static final int MINIMUM_WIN_SCORE = 18432;
+    public static final int MINIMUM_WIN_SCORE = TARGET_POINTS*8;
     
     /**
      * The score so far
@@ -57,11 +57,6 @@ public class Board implements Cloneable {
      * Random Generator which is used in the creation of random cells
      */
     private final Random randomGenerator;
-    
-    /**
-     * It caches the number of empty cells
-     */
-    private Integer cache_emptyCells=null;
     
     /**
      * Constructor without arguments. It initializes randomly the Board
@@ -103,6 +98,16 @@ public class Board implements Cloneable {
      */
     public int[][] getBoardArray() {
         return clone2dArray(boardArray);
+    }
+    
+    public void printBoardArray(){
+    	for(int i=0; i<4; i++){
+    		for(int j=0; j<4; j++){
+    			System.out.printf("%5d ", boardArray[i][j]);    			
+    		}
+    		System.out.println("");
+    	}
+    	System.out.println("");
     }
     
     /**
@@ -213,10 +218,7 @@ public class Board implements Cloneable {
      * @return 
      */
     public int getNumberOfEmptyCells() {
-        if(cache_emptyCells==null) {
-            cache_emptyCells = getEmptyCellIds().size();
-        }
-        return cache_emptyCells;
+        return getEmptyCellIds().size();
     }
     
     /**
@@ -284,32 +286,37 @@ public class Board implements Cloneable {
         int newPoints = move(direction);
         int[][] newBoardArray = getBoardArray();
         
-        //add random cell
-        boolean newCellAdded = false;
+       
+        if(newPoints>0 || !isEqual(currBoardArray, newBoardArray)) {
+            addRandomCell();
+        } else {
         
-        if(!isEqual(currBoardArray, newBoardArray)) {
-            newCellAdded = addRandomCell();
+        	if(hasWon()) {
+        		return ActionStatus.WIN;
+        	}		
+        	if(isGameTerminated()) {
+        		return ActionStatus.NO_MORE_MOVES;
+        	}
+        	System.out.print("Illegal Move!\n");
+        	if(direction == Direction.UP){
+        		System.out.println("UP");
+        	}
+        	else if(direction == Direction.DOWN){
+        		System.out.println("DOWN");
+        	}
+        	else if(direction == Direction.LEFT){
+        		System.out.println("LEFT");
+        	}
+        	else if(direction == Direction.RIGHT){
+        		System.out.println("RIGHT");
+        	}
+        	else if(direction == null){
+        		System.out.println("null");
+        		
+        	}
+        	printBoardArray();
         }
-        
-        if(newPoints==0 && newCellAdded==false) {
-            if(isGameTerminated()) {
-                result = ActionStatus.NO_MORE_MOVES;
-            }
-            else {
-                result = ActionStatus.INVALID_MOVE;
-            }
-        }
-        else {
-            if(newPoints>=TARGET_POINTS) {
-                result = ActionStatus.WIN;
-            }
-            else {
-                if(isGameTerminated()) {
-                    result = ActionStatus.NO_MORE_MOVES;
-                }
-            }
-        }
-        
+    	
         return result;
     }
     
@@ -323,14 +330,25 @@ public class Board implements Cloneable {
     public void setEmptyCell(int i, int j, int value) {
         if(boardArray[i][j]==0) {
             boardArray[i][j]=value;
-            cache_emptyCells=null;
         }
+    }
+    
+    public void flip() {
+        int[][] flippedBoard = new int[BOARD_SIZE][BOARD_SIZE];
+        
+        for(int i=0;i<BOARD_SIZE;++i) {
+            for(int j=0;j<BOARD_SIZE;++j) {
+                flippedBoard[BOARD_SIZE-j-1][i] = boardArray[j][i];
+            }
+        }
+        
+        boardArray=flippedBoard;
     }
     
     /**
      * Rotates the board on the left
      */
-    private void rotateLeft() {
+    public void rotateLeft() {
         int[][] rotatedBoard = new int[BOARD_SIZE][BOARD_SIZE];
         
         for(int i=0;i<BOARD_SIZE;++i) {
@@ -345,7 +363,7 @@ public class Board implements Cloneable {
     /**
      * Rotates the board on the right
      */
-    private void rotateRight() {
+    public void rotateRight() {
         int[][] rotatedBoard = new int[BOARD_SIZE][BOARD_SIZE];
         
         for(int i=0;i<BOARD_SIZE;++i) {

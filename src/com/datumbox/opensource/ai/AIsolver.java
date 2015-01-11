@@ -55,7 +55,7 @@ public class AIsolver {
     public static Direction findBestMove(Board theBoard, int depth) throws CloneNotSupportedException {
         //Map<String, Object> result = minimax(theBoard, depth, Player.USER);
         
-        Map<String, Object> result = alphabeta(theBoard, depth, Integer.MIN_VALUE, Integer.MAX_VALUE, Player.USER);
+        Map<String, Object> result = alphabeta(theBoard, depth, Player.USER);
         
         return (Direction)result.get("Direction");
     }
@@ -76,7 +76,7 @@ public class AIsolver {
         int bestScore;
         
         if(depth==0 || theBoard.isGameTerminated()) {
-            bestScore=heuristicScore(theBoard.getScore(),theBoard.getNumberOfEmptyCells(),calculateClusteringScore(theBoard.getBoardArray()));
+            bestScore=heuristicScore(theBoard.getScore(),theBoard.getNumberOfEmptyCells(),calculateClusteringScore(theBoard.getBoardArray()),calculateCornerScoreWrapper(theBoard));
         }
         else {
             if(player == Player.USER) {
@@ -145,7 +145,7 @@ public class AIsolver {
      * @return
      * @throws CloneNotSupportedException 
      */
-    private static Map<String, Object> alphabeta(Board theBoard, int depth, int alpha, int beta, Player player) throws CloneNotSupportedException {
+    private static Map<String, Object> alphabeta(Board theBoard, int depth, Player player) throws CloneNotSupportedException {
         Map<String, Object> result = new HashMap<>();
         
         Direction bestDirection = null;
@@ -153,16 +153,17 @@ public class AIsolver {
         
         if(theBoard.isGameTerminated()) {
             if(theBoard.hasWon()) {
-                bestScore=Integer.MAX_VALUE; //highest possible score
+                bestScore=4096*100; //highest possible score - using MAX_VALUE would cause overflow problems
             }
             else {
-                bestScore=Math.min(theBoard.getScore(), 1); //lowest possible score
+                bestScore=0;
             }
         }
         else if(depth==0) {
-            bestScore=heuristicScore(theBoard.getScore(),theBoard.getNumberOfEmptyCells(),calculateClusteringScore(theBoard.getBoardArray()));
+            bestScore=heuristicScore(theBoard.getScore(),theBoard.getNumberOfEmptyCells(),calculateClusteringScore(theBoard.getBoardArray()),calculateCornerScoreWrapper(theBoard));
         }
         else {
+        	bestScore = 0;
             if(player == Player.USER) {
                 for(Direction direction : Direction.values()) {
                     Board newBoard = (Board) theBoard.clone();
@@ -173,51 +174,48 @@ public class AIsolver {
                     	continue;
                     }
                     
-                    Map<String, Object> currentResult = alphabeta(newBoard, depth-1, alpha, beta, Player.COMPUTER);
+                    Map<String, Object> currentResult = alphabeta(newBoard, depth-1, Player.COMPUTER);
                     int currentScore=((Number)currentResult.get("Score")).intValue();
                                         
-                    if(currentScore>alpha) { //maximize score
-                        alpha=currentScore;
+                    if(currentScore>=bestScore) { //maximize score
+                        bestScore=currentScore;
                         bestDirection=direction;
                     }
-                    
-                    if(beta<=alpha) {
-                        break; //beta cutoff
-                    }
                 }
-                
-                bestScore = alpha;
             }
             else {
                 List<Integer> moves = theBoard.getEmptyCellIds();
                 int[] possibleValues = {2, 4};
-
-                int i,j;
-                abloop: for(Integer cellId : moves) {
-                    i = cellId/Board.BOARD_SIZE;
-                    j = cellId%Board.BOARD_SIZE;
-
-                    for(int value : possibleValues) {
+                /*Only consider maxBranches randon new cells.  Start with 2's, top to bottom, left to right.
+                 * Note that this would cause problems if we allowed the AI to use any corner, and not just top left.
+                */
+                int maxBranches = 16; 
+                int scoreSum=0;
+                
+                int branchCnt=0;
+                for(int value : possibleValues) {
+                    
+                	for(Integer cellId : moves) {
+                                       	
+                        int i = cellId/Board.BOARD_SIZE;
+                        int j = cellId%Board.BOARD_SIZE;
+                        
                         Board newBoard = (Board) theBoard.clone();
                         newBoard.setEmptyCell(i, j, value);
 
-                        Map<String, Object> currentResult = alphabeta(newBoard, depth-1, alpha, beta, Player.USER);
+                        Map<String, Object> currentResult = alphabeta(newBoard, depth-1, Player.USER);
                         int currentScore=((Number)currentResult.get("Score")).intValue();
-                        if(currentScore<beta) { //minimize best score
-                            beta=currentScore;
+                        if(value == 2){
+                        	scoreSum += 9*currentScore;
+                        } else {
+                        	scoreSum += currentScore;
                         }
-                        
-                        if(beta<=alpha) {
-                            break abloop; //alpha cutoff
-                        }
+                        branchCnt++;
+                        if(branchCnt >= maxBranches) break;
                     }
+                	if(branchCnt >= maxBranches) break;
                 }
-                
-                bestScore = beta;
-                
-                if(moves.isEmpty()) {
-                    bestScore=0;
-                }
+                bestScore = scoreSum / (theBoard.getNumberOfEmptyCells() * 10);
             }
         }
         
@@ -236,9 +234,79 @@ public class AIsolver {
      * @param clusteringScore
      * @return 
      */
-    private static int heuristicScore(int actualScore, int numberOfEmptyCells, int clusteringScore) {
-        int score = (int) (actualScore+Math.log(actualScore)*numberOfEmptyCells -clusteringScore);
+    private static int heuristicScore(int actualScore, int numberOfEmptyCells, int clusteringScore, int cornerScore) {
+        int score = (int) (actualScore-300/(numberOfEmptyCells+1) - clusteringScore + 4*cornerScore);
         return Math.max(score, Math.min(actualScore, 1));
+    }
+    
+    private static int calculateCornerScoreWrapper(Board board){
+    	return calculateCornerScore(board.getBoardArray());
+    	
+    	/* Letting the AI solve using any corner is definitely a better idea - I just couldn't get it to work right.
+    	 * My guess is that the error is not a simple bug, but complex implications of the corner scoring.
+    	 *   
+    	 * Consider the following board:
+    	 * 4  1024  512  256
+    	 * 2     0    0    0
+    	 * 0     0    0    0
+    	 * 0     0    0    0
+    	 * 
+    	 * The correct strategy is (probably) to accept the "lost space" in the upper left corner and go for a second row of
+    	 * 16   32   64  128
+    	 * 
+    	 * But the solve any corner metric encourages a right column of 256, 128, 64, 32 etc., which is probably even worse
+    	 * than no corner heuristic at all.
+    	 * 
+    	 * It's probably more important to first add code for "it's okay if you lose a corner - go ahead and try to win
+    	 * with a missing square" before allowing the target corner to change.
+    	 *  
+    	*/
+    	
+    	/*int score = 0;
+    	for(int j=0; j<2; j++){
+    		for(int i=0; i<4; i++){
+    			score = Math.max(score, calculateCornerScore(board.getBoardArray()));
+    			board.rotateLeft();
+    		}
+    	
+    		board.flip();
+    	}
+    	
+    	return score;*/
+    }
+    
+    private static int calculateCornerScore(int[][] boardArray){
+    	//return 0;
+    	int cornerScore = 0;
+    	int limit = 2048*8;
+    	for(int i=0; i<4; i++){
+    		if(boardArray[0][i] <= limit){
+    			cornerScore += boardArray[0][i];
+    			limit = boardArray[0][i];
+    		} else {
+    			return cornerScore;
+    		}
+    	}
+    	
+    	for(int i=3; i>=0; i--){
+    		if(boardArray[1][i] <= limit){
+    			cornerScore += boardArray[1][i];
+    			limit = boardArray[1][i];
+    		} else {
+    			return cornerScore;
+    		}
+    	}
+    	
+    	for(int i=0; i<4; i++){
+    		if(boardArray[2][i] <= limit){
+    			cornerScore += boardArray[2][i];
+    			limit = boardArray[2][i];
+    		} else {
+    			return cornerScore;
+    		}
+    	}
+    	
+    	return cornerScore;
     }
     
     /**

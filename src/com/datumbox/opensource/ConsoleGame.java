@@ -98,14 +98,16 @@ public class ConsoleGame {
         System.out.println("Running "+total+" games to estimate the accuracy:");
         
         for(int i=0;i<total;++i) {
-            int hintDepth = 7;
+            int hintDepth = 5;
             Board theGame = new Board();
+            
             Direction hint = AIsolver.findBestMove(theGame, hintDepth);
+            
             ActionStatus result=ActionStatus.CONTINUE;
-            while(result==ActionStatus.CONTINUE || result==ActionStatus.INVALID_MOVE) {
+            while(result==ActionStatus.CONTINUE) {
                 result=theGame.action(hint);
-
-                if(result==ActionStatus.CONTINUE || result==ActionStatus.INVALID_MOVE ) {
+                if(hintDepth >= 5) theGame.printBoardArray();
+                if(result==ActionStatus.CONTINUE) {
                     hint = AIsolver.findBestMove(theGame, hintDepth);
                 }
             }
@@ -131,7 +133,7 @@ public class ConsoleGame {
         System.out.println("Play the 2048 Game!"); 
         System.out.println("Use 8 for UP, 6 for RIGHT, 2 for DOWN and 4 for LEFT. Type a to play automatically and q to exit. Press enter to submit your choice.");
         
-        int hintDepth = 7;
+        int hintDepth = 5;
         Board theGame = new Board();
         Direction hint = AIsolver.findBestMove(theGame, hintDepth);
         printBoard(theGame.getBoardArray(), theGame.getScore(), hint);

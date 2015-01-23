@@ -70,6 +70,10 @@ public class Board implements Cloneable {
         
     }
     
+    public void setBoardArray(int[][] boardArray) {
+    	this.boardArray = boardArray.clone();
+    }
+    
     /**
      * Deep clone
      * 

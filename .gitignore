@@ -6,3 +6,17 @@
 nbactions.xml
 nb-configuration.xml
 /bin/
+
+# Maven
+/target
+
+# Mac OS X
+.DS_Store
+
+# Eclipse
+/.classpath
+/.project
+/.settings
+
+# Emacs
+*~
